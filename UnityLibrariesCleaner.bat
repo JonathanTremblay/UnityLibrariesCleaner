@@ -1,7 +1,7 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V0.9.8"
+set "Version=V0.9.9"
 set "Date=2023-06"
 rem About this version:
 rem - First public version
@@ -122,7 +122,7 @@ for %%d in (%folders%) do (
 	set /p "DeleteFolder= Delete the folder %Red%%%~d%Normal% ? (Y/%Bold%[N]%Normal%) "
 	if /i "!DeleteFolder!"=="Y" (
 		rem echo %%~d will be deleted
-		set "foldersToDelete=!foldersToDelete! %%~d"
+		set "foldersToDelete=!foldersToDelete! "%%~d""
 		set /a counter+=1
 	)
 )

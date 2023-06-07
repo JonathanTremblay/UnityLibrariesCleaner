@@ -31,6 +31,7 @@ This is a Batch Script to free up disk space by emptying the Library folders of 
 
 ## Known Issues
 
+* The script cannot delete files whose path is longer than 260 characters, due to a system limitation. An error message is displayed for each of these files. Files with shorter paths will still be deleted normally. To work around this problem, you must shorten the path of the projects before relaunching the script. (Note that some of Unity features also generate errors when paths are too long, so it's best to always keep your projects in short paths.)
 * If the script has a lot of folders to examine, the process may take a long time.
 
 ## About the Project
@@ -47,6 +48,8 @@ Project Repository: https://github.com/JonathanTremblay/UnityLibrariesCleaner
 
 ## Version History
 
+* 0.9.9
+    * Fixed manual mode when path contains spaces.
 * 0.9.8
     * First public version.
 
