@@ -22,7 +22,8 @@ This is a Batch Script to free up disk space by emptying the Library folders of 
  * If Windows prevents the script from running, click on "More info" and then "Run anyway" (don't take my word for it, take a look at the code first!)
  * The script finds all valid Library folders and then offers Manual or Automatic mode.
  * Then the contents of the folders are permanently deleted (not placed in the recycle bin).
- * The "Library/LastSceneManagerSetup.txt" files are preserved (allows to keep the last open scene of each project).
+ * The "Library/LastSceneManagerSetup.txt" and "Library/EditorUserBuildSettings.asset" files are preserved (these files are keeping the last opened scene of projects and their BuildSettings). 
+ 
  That's it!
 
 ## Compatibility
@@ -48,6 +49,8 @@ Project Repository: https://github.com/JonathanTremblay/UnityLibrariesCleaner
 
 ## Version History
 
+* 1.0.0
+    * Improved search speed. BuildSettings preservation.
 * 0.9.9
     * Fixed manual mode when path contains spaces.
 * 0.9.8

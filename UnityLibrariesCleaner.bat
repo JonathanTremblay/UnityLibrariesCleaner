@@ -1,10 +1,10 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V0.9.9"
-set "Date=2023-06"
+set "Version=V1.0.0"
+set "Date=2024-01"
 rem About this version:
-rem - First public version
+rem - Improved search speed. BuildSettings preservation.
 
 rem Save the original encoding:
 for /f "tokens=2 delims=:." %%x in ('chcp') do set cp=%%x
@@ -30,6 +30,7 @@ set "RedSeparator=%RedBackground%%Separator%%Normal%"
 
 rem Variables for finding Library folders:
 set "SceneFile=LastSceneManagerSetup.txt"
+set "BuildSettingsFile=EditorUserBuildSettings.asset"
 set "LibraryFolder=Library"
 
 echo %GreenSeparator%
@@ -46,7 +47,8 @@ echo  Usage and warnings:
 echo  - The .bat file must be placed in a folder that contains one or more Unity projects.
 echo  - The script first finds all valid Library folders and then offers Manual or Automatic mode.
 echo  - The folder contents are permanently deleted (not placed in the recycle bin).
-echo  - The "Library/LastSceneManagerSetup.txt" files are preserved (keep the last opened scene of the projects).
+echo  - The "Library/LastSceneManagerSetup.txt" and "Library/EditorUserBuildSettings.asset" files are preserved 
+echo    (these files are keeping the last opened scene of projects and their BuildSettings). 
 echo.
 echo %GreenSeparator%
 echo.
@@ -57,16 +59,16 @@ set /a counter=0
 
 rem Create an array named "folders" to store the folders to process:
 set "folders="
-set "lastFolder=XYZ"
+set "lastFolder="
 
-for /d /r %%d in (%LibraryFolder%) do (
-	set "currentFolder=%%~d"
+for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
+    set "currentFolder=%%~d"
 	if "!currentFolder:%%~lastFolder!=!" == "!currentFolder!" (
 	   if exist "%%d\%SceneFile%" (
 		   cd %%d
 			set /a fileCount=0
 			for /r %%f in (*) do set /a fileCount+=1
-			if !fileCount! geq 2 (
+			if !fileCount! geq 3 (
 				set "lastFolder=%%~d"
 				echo  • %Red%%%~d%Normal%
 				rem Add currentFolder to the folders array, then increment the counter:
@@ -76,7 +78,7 @@ for /d /r %%d in (%LibraryFolder%) do (
 		)
 	)
 )
-set "foldersToDelete=%folders%"
+set "foldersToDelete=!folders!"
 cd /d "%~dp0"
 echo.
 if %counter% == 0 goto NOTHING
@@ -171,6 +173,11 @@ for %%d in (%foldersToDelete%) do (
 				rem Backup the last opened scene file:
 				mkdir "%%~d_Temp"
 				move "%%~d\%SceneFile%" "%%~d_Temp" >nul
+				
+				rem Also check and copy BuildSettingsFile if it exists:
+				if exist "%%~d\%BuildSettingsFile%" (
+					copy "%%~d\%BuildSettingsFile%" "%%~d_Temp" >nul
+				)
 			)
 			rd /s /q "%%~d"
 			rem The following condition moves the file or renames the temp folder
