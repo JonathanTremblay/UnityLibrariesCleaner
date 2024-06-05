@@ -1,10 +1,10 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V1.0.0"
-set "Date=2024-01"
+set "Version=V1.0.1"
+set "Date=2024-06-05"
 rem About this version:
-rem - Improved search speed. BuildSettings preservation.
+rem - Improved search speed (v1.0.0 attempt was not working).
 
 rem Save the original encoding:
 for /f "tokens=2 delims=:." %%x in ('chcp') do set cp=%%x
@@ -59,13 +59,16 @@ set /a counter=0
 
 rem Create an array named "folders" to store the folders to process:
 set "folders="
-set "lastFolder="
+set "lastFolder=###"
 
 for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
     set "currentFolder=%%~d"
-	if "!currentFolder:%%~lastFolder!=!" == "!currentFolder!" (
-	   if exist "%%d\%SceneFile%" (
-		   cd %%d
+	echo "!currentFolder!" | findstr /b "!lastFolder!" >nul && (
+        rem currentFolder is in lastFolder, skip it
+    ) || (
+        rem currentFolder is not in lastFolder, it will be verified
+		if exist "%%d\%SceneFile%" (
+			cd %%d
 			set /a fileCount=0
 			for /r %%f in (*) do set /a fileCount+=1
 			if !fileCount! geq 3 (
@@ -78,6 +81,7 @@ for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
 		)
 	)
 )
+
 set "foldersToDelete=!folders!"
 cd /d "%~dp0"
 echo.

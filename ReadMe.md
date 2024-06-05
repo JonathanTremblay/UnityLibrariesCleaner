@@ -37,7 +37,7 @@ This is a Batch Script to free up disk space by emptying the Library folders of 
 
 ## About the Project
 
-* I created this tool to free up some space on my drives, I hope it helps you to claim back your space to!
+* I created this tool to free up some space on my drives, I hope it helps you to claim back your space too!
 
 ## Contact
 
@@ -49,6 +49,8 @@ Project Repository: https://github.com/JonathanTremblay/UnityLibrariesCleaner
 
 ## Version History
 
+* 1.0.1
+    * Improved search speed (1.0.0 attempt was not working).
 * 1.0.0
     * Improved search speed. BuildSettings preservation.
 * 0.9.9
