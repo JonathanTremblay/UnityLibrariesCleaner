@@ -1,10 +1,12 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V1.0.1"
-set "Date=2024-06-05"
+set "Version=V1.0.2"
+set "Date=2024-08-01"
 rem About this version:
-rem - Improved search speed (v1.0.0 attempt was not working).
+rem - Added folder path length detection to prevent errors.
+rem - Changed color codes for feedback.
+rem - Improved search speed again.
 
 rem Save the original encoding:
 for /f "tokens=2 delims=:." %%x in ('chcp') do set cp=%%x
@@ -20,13 +22,16 @@ rem Variables for text formatting:
 set "Bold=[1m"
 set "Normal=[0m"
 set "Red=[91m"
+set "Yellow=[93m"
 set "Green=[92m"
 set "RedBackground=[1;41m"
-set "RedBackgroundNormal=[41m"
+set "YellowBackground=[1;43m"
 set "GreenBackground=[42;1m"
 set "Separator=************************************************************************************************************************"
 set "GreenSeparator=%GreenBackground%%Separator%%Normal%"
 set "RedSeparator=%RedBackground%%Separator%%Normal%"
+set "YellowSeparator=%YellowBackground%%Separator%%Normal%"
+set /a maxPathLength=256
 
 rem Variables for finding Library folders:
 set "SceneFile=LastSceneManagerSetup.txt"
@@ -57,31 +62,53 @@ echo  Searching for folders that can be %Bold%emptied%Normal%:
 rem Find Library folders containing files to delete:
 set /a counter=0
 
+rem Find Library folders with invalid paths:
+set /a impossibleCounter=0
+
 rem Create an array named "folders" to store the folders to process:
 set "folders="
+set "impossibleFolders="
 set "lastFolder=###"
+set /a lastLength=0
 
 for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
     set "currentFolder=%%~d"
-	echo "!currentFolder!" | findstr /b "!lastFolder!" >nul && (
-        rem currentFolder is in lastFolder, skip it
-    ) || (
+	call set "currentFolderSub=%%currentFolder:~0,!lastLength!%%
+	if "!currentFolderSub!" equ "!lastFolder!" (
+		rem currentFolder is in lastFolder, skip it
+	) else (
         rem currentFolder is not in lastFolder, it will be verified
+		set "folderPath=%%~d"
+		set "s=#!folderPath!"
+		set "currentLength=0"
+		for %%N in (1024 512 256 128 64 32 16 8 4 2 1) do (
+			if "!s:~%%N,1!" neq "" (
+				set /a "currentLength+=%%N"
+				set "s=!s:~%%N!"
+			)
+		)
 		if exist "%%d\%SceneFile%" (
 			cd %%d
 			set /a fileCount=0
 			for /r %%f in (*) do set /a fileCount+=1
 			if !fileCount! geq 3 (
-				set "lastFolder=%%~d"
-				echo  • %Red%%%~d%Normal%
-				rem Add currentFolder to the folders array, then increment the counter:
-				set "folders=!folders! "%%~d""
-				set /a counter+=1
+				if !currentLength! gtr !maxPathLength! (
+					set "impossibleFolders=!impossibleFolders! "%%~d""
+					set /a impossibleCounter+=1
+				) else (
+					set "lastFolder=%%~d"
+					set /a lastLength="currentLength"
+					echo  • %Yellow%%%~d%Normal%
+					rem Add currentFolder to the folders array, then increment the counter:
+					set "folders=!folders! "%%~d""
+					set /a counter+=1
+				)
 			)
 		)
 	)
 )
 
+:QUESTION
 set "foldersToDelete=!folders!"
 cd /d "%~dp0"
 echo.
@@ -94,8 +121,6 @@ if %counter% geq 2 (
 	set "plural=s"
 	set "pronoun=these"
 )
-
-:QUESTION
 echo  AVAILABLE MODES:
 echo  %Bold%[1]%Normal% - MANUAL (choose for each folder, one by one)
 echo   2  - AUTOMATIC (delete all folders)
@@ -125,7 +150,7 @@ set "foldersToDelete="
 set /a counter=0
 for %%d in (%folders%) do (
 	set "DeleteFolder=N"
-	set /p "DeleteFolder= Delete the folder %Red%%%~d%Normal% ? (Y/%Bold%[N]%Normal%) "
+	set /p "DeleteFolder= Delete the folder %Yellow%%%~d%Normal% ? (Y/%Bold%[N]%Normal%) "
 	if /i "!DeleteFolder!"=="Y" (
 		rem echo %%~d will be deleted
 		set "foldersToDelete=!foldersToDelete! "%%~d""
@@ -141,23 +166,22 @@ set "number=%counter%"
 if %counter% geq 1 goto AUTOMATIC
 
 :NOTHING
-echo %RedSeparator%
+echo %GreenSeparator%
 echo.
 echo  %Bold%NOTHING TO CLEAN ^^! %Normal%
 echo  No Library folder to empty, so the script is done.
 echo.
-echo %RedSeparator%
-goto END
+echo %GreenSeparator%
+goto ENDCHECK
 
 :STOP
-echo %RedSeparator%
+echo %YellowSeparator%
 echo.
 echo  %Bold%INTERRUPTION ^^! %Normal%
 echo  Script stopped. No files deleted.
 echo.
-echo %RedSeparator%
-goto END
-
+echo %YellowSeparator%
+goto ENDCHECK
 
 :AUTOMATIC
 echo %GreenSeparator%
@@ -174,24 +198,25 @@ for %%d in (%foldersToDelete%) do (
 		if !fileCount! geq 1 (
 			cd /d "%~dp0"
 			if exist "%%~d\%SceneFile%" (
-				rem Backup the last opened scene file:
-				mkdir "%%~d_Temp"
-				move "%%~d\%SceneFile%" "%%~d_Temp" >nul
-				
-				rem Also check and copy BuildSettingsFile if it exists:
+				rem Create a temp folder to backup the desired files:
+				mkdir "%%~d_T"
+				rem Move the file to the temp folder:
+				move "%%~d\%SceneFile%" "%%~d_T" >nul
+				rem Also check if BuildSettingsFile exists:
 				if exist "%%~d\%BuildSettingsFile%" (
-					copy "%%~d\%BuildSettingsFile%" "%%~d_Temp" >nul
+					rem Move the file to the temp folder:
+					move "%%~d\%BuildSettingsFile%" "%%~d_T" >nul
 				)
 			)
 			rd /s /q "%%~d"
 			rem The following condition moves the file or renames the temp folder
-			if exist "%%~d_Temp" (
+			if exist "%%~d_T" (
 				if exist "%%~d" (
-					move "%%~d_Temp\%SceneFile%" "%%~d" >nul
-					rd /s /q "%%~d_Temp"
-				) else ( ren "%%~d_Temp" %LibraryFolder%)
+					for %%f in ("%%~d_T\*.*") do move "%%f" "%%~d" >nul
+					rd /s /q "%%~d_T"
+				) else ( ren "%%~d_T" %LibraryFolder%)
 			)
-			echo %Red% %%~d%Normal% has been emptied
+			echo %Yellow% %%~d%Normal% has been emptied
 			set /a counter+=1
 		)
 	)
@@ -205,6 +230,31 @@ echo  %Bold%SUCCESS: %counter% FOLDER%plural% EMPTIED %Normal%
 echo  Thank you for using Unity Libraries Cleaner ^^!
 echo.
 echo %GreenSeparator%
+
+:ENDCHECK
+if %impossibleCounter% equ 0 goto END
+timeout 2
+set "plural="
+set "pronoun=it"
+set "pronoun2=it"
+set "verb=has"
+set "verb2=is"
+if %impossibleCounter% geq 2 (
+	set "plural=s"
+	set "pronoun=they"
+	set "pronoun2=them"
+	set "verb=have"
+	set "verb2=are"
+)
+echo.
+echo %RedSeparator%
+echo.
+echo  %Bold%WARNING ^^! %Normal%
+echo  The following folder path%plural% %verb% been detected but %verb2% exceeding %maxPathLength% characters, so %pronoun% cannot be deleted.
+echo  To resolve this issue, move or rename %pronoun2%. Then run the script again^^!
+for %%d in (%impossibleFolders%) do echo  • %Red%%%~d%Normal%
+echo.
+echo %RedSeparator%
 
 :END
 echo.

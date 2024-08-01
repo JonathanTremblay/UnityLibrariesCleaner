@@ -1,0 +1,5 @@
+# Ignore the TESTS directory
+TESTS/
+
+# Ignore the zip containing an untouched version of the TESTS directory
+TESTS.zip
