@@ -23,6 +23,7 @@ This is a Batch Script to free up disk space by emptying the Library folders of 
  * The script finds all valid Library folders and then offers Manual or Automatic mode.
  * Then the contents of the folders are permanently deleted (not placed in the recycle bin).
  * The "Library/LastSceneManagerSetup.txt" and "Library/EditorUserBuildSettings.asset" files are preserved (these files are keeping the last opened scene of projects and their BuildSettings). 
+ * The script cannot process paths if they contain exclamation marks (these paths will be ignored).
  
  That's it!
 
@@ -49,6 +50,10 @@ Project Repository: https://github.com/JonathanTremblay/UnityLibrariesCleaner
 
 ## Version History
 
+* 1.0.3
+    * Added total folder path length validation to prevent processing errors.
+    * Added folder numbering to make the script easier to use.
+    * Added a note about exclamation marks in paths.
 * 1.0.2
     * Added folder path length detection to prevent errors.
     * Changed color codes for feedback.

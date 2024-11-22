@@ -1,12 +1,12 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V1.0.2"
-set "Date=2024-08-01"
+set "Version=V1.0.3"
+set "Date=2024-11-22"
 rem About this version:
-rem - Added folder path length detection to prevent errors.
-rem - Changed color codes for feedback.
-rem - Improved search speed again.
+rem - Added total folder path length validation to prevent processing errors.
+rem - Added folder numbering to make the script easier to use.
+rem - Added a note about exclamation marks in paths.
 
 rem Save the original encoding:
 for /f "tokens=2 delims=:." %%x in ('chcp') do set cp=%%x
@@ -32,6 +32,7 @@ set "GreenSeparator=%GreenBackground%%Separator%%Normal%"
 set "RedSeparator=%RedBackground%%Separator%%Normal%"
 set "YellowSeparator=%YellowBackground%%Separator%%Normal%"
 set /a maxPathLength=256
+set /a maxTotalPathLength=8192
 
 rem Variables for finding Library folders:
 set "SceneFile=LastSceneManagerSetup.txt"
@@ -54,6 +55,7 @@ echo  - The script first finds all valid Library folders and then offers Manual 
 echo  - The folder contents are permanently deleted (not placed in the recycle bin).
 echo  - The "Library/LastSceneManagerSetup.txt" and "Library/EditorUserBuildSettings.asset" files are preserved 
 echo    (these files are keeping the last opened scene of projects and their BuildSettings). 
+echo  - The script cannot process paths if they contain exclamation marks.
 echo.
 echo %GreenSeparator%
 echo.
@@ -70,6 +72,7 @@ set "folders="
 set "impossibleFolders="
 set "lastFolder=###"
 set /a lastLength=0
+set /a currentTotalLength=0
 
 for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
     set "currentFolder=%%~d"
@@ -87,6 +90,8 @@ for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
 				set "s=!s:~%%N!"
 			)
 		)
+		rem adding characters to take into account a space and quotes:
+		set /a "currentLength+=3"
 		if exist "%%d\%SceneFile%" (
 			cd %%d
 			set /a fileCount=0
@@ -96,12 +101,19 @@ for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
 					set "impossibleFolders=!impossibleFolders! "%%~d""
 					set /a impossibleCounter+=1
 				) else (
-					set "lastFolder=%%~d"
-					set /a lastLength="currentLength"
-					echo  • %Yellow%%%~d%Normal%
-					rem Add currentFolder to the folders array, then increment the counter:
-					set "folders=!folders! "%%~d""
-					set /a counter+=1
+					set /a currentTotalLength += currentLength
+					if !currentTotalLength! gtr !maxTotalPathLength! (
+						echo %Red% There is at least one more folder, but the maximum total path length has been reached.
+						echo %Yellow% Please delete the identified folders, and rerun the script to delete the remaining ones. %Normal%
+						goto :QUESTION
+					) else (
+						set "lastFolder=%%~d"
+						set /a lastLength=currentLength-3
+						set /a counter+=1
+						echo  !counter!: %Yellow%%%~d%Normal%
+						rem Add currentFolder to the folders array:
+						set "folders=!folders! "%%~d""
+					)
 				)
 			)
 		)
@@ -112,14 +124,14 @@ for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
 set "foldersToDelete=!folders!"
 cd /d "%~dp0"
 echo.
-if %counter% == 0 goto NOTHING
+if %counter% == 0 goto :NOTHING
 echo %Normal%%GreenSeparator%
 echo.
 set "plural="
 set "pronoun=this"
 if %counter% geq 2 (
 	set "plural=s"
-	set "pronoun=these"
+	set "pronoun=these %counter%"
 )
 echo  AVAILABLE MODES:
 echo  %Bold%[1]%Normal% - MANUAL (choose for each folder, one by one)
@@ -131,26 +143,29 @@ set /p mode= Which mode do you want to use to delete the contents of %pronoun% 
 if "%mode%" == "2" (
     echo   2: AUTOMATIC MODE
     echo.
-	goto AUTOMATIC
+	goto :AUTOMATIC
 )
 if "%mode%" == "3" (
     echo   3: CANCEL MODE
     echo.
-	goto STOP
+	goto :STOP
 )
 
 rem Default mode:
 echo   1: MANUAL MODE
 echo.
-goto CHOOSE
+goto :CHOOSE
 
 :CHOOSE
 rem For loop to prompt the user for each folder:
 set "foldersToDelete="
+set /a total=counter
 set /a counter=0
+set /a displayCounter=0
 for %%d in (%folders%) do (
 	set "DeleteFolder=N"
-	set /p "DeleteFolder= Delete the folder %Yellow%%%~d%Normal% ? (Y/%Bold%[N]%Normal%) "
+	set /a displayCounter+=1
+	set /p "DeleteFolder= !displayCounter!/%total% Delete the folder %Yellow%%%~d%Normal% ? (Y/%Bold%[N]%Normal%) "
 	if /i "!DeleteFolder!"=="Y" (
 		rem echo %%~d will be deleted
 		set "foldersToDelete=!foldersToDelete! "%%~d""
@@ -163,7 +178,7 @@ set "plural="
 if %counter% geq 2 set "plural=s"
 set "number=%counter%"
 
-if %counter% geq 1 goto AUTOMATIC
+if %counter% geq 1 goto :AUTOMATIC
 
 :NOTHING
 echo %GreenSeparator%
@@ -172,7 +187,7 @@ echo  %Bold%NOTHING TO CLEAN ^^! %Normal%
 echo  No Library folder to empty, so the script is done.
 echo.
 echo %GreenSeparator%
-goto ENDCHECK
+goto :ENDCHECK
 
 :STOP
 echo %YellowSeparator%
@@ -181,14 +196,15 @@ echo  %Bold%INTERRUPTION ^^! %Normal%
 echo  Script stopped. No files deleted.
 echo.
 echo %YellowSeparator%
-goto ENDCHECK
+goto :ENDCHECK
 
 :AUTOMATIC
 echo %GreenSeparator%
 echo.
 echo  %counter% deletion%plural% to perform (each deletion may take a few seconds...)
 echo.
-set /a counter = 0
+set /a total=counter
+set /a counter=0
 rem Clean the Library folders:
 for %%d in (%foldersToDelete%) do (
 	if exist "%%~d\%SceneFile%" (
@@ -216,8 +232,8 @@ for %%d in (%foldersToDelete%) do (
 					rd /s /q "%%~d_T"
 				) else ( ren "%%~d_T" %LibraryFolder%)
 			)
-			echo %Yellow% %%~d%Normal% has been emptied
 			set /a counter+=1
+			echo  !counter!/%total% %Yellow% %%~d%Normal% has been emptied
 		)
 	)
 )
@@ -232,7 +248,7 @@ echo.
 echo %GreenSeparator%
 
 :ENDCHECK
-if %impossibleCounter% equ 0 goto END
+if %impossibleCounter% equ 0 goto :END
 timeout 2
 set "plural="
 set "pronoun=it"
