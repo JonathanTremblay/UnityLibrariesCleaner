@@ -1,5 +1,10 @@
 # UNITY LIBRARIES CLEANER
 
+![Unity](https://img.shields.io/badge/Unity-000000?style=flat-square&logo=unity&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat-square)
+![Batch](https://img.shields.io/badge/Batch%20(.bat)-4D4D4D?style=flat-square)
+![License](https://img.shields.io/badge/license-CC0-green.svg?style=flat-square)
+
 This is a Batch Script to free up disk space by emptying the Library folders of your Unity projects.
 (Don't worry, when you open a project, Unity can always rebuild the content of the Library folder.)
 
@@ -50,6 +55,11 @@ Project Repository: https://github.com/JonathanTremblay/UnityLibrariesCleaner
 
 ## Version History
 
+* 1.1.0
+    * Optimized scanning speed (replaced batch file counting with native directory checks).
+    * Optimized deletion speed (removed redundant file verification).
+    * Improved Unity project detection using Assets/ProjectSettings structure.
+    * Visual improvements (progress spinner).
 * 1.0.3
     * Added total folder path length validation to prevent processing errors.
     * Added folder numbering to make the script easier to use.

@@ -1,12 +1,12 @@
 @echo OFF
 
 rem VERSION INFO
-set "Version=V1.0.3"
-set "Date=2024-11-22"
+set "Version=V1.1.0"
+set "Date=2026-03-01"
 rem About this version:
-rem - Added total folder path length validation to prevent processing errors.
-rem - Added folder numbering to make the script easier to use.
-rem - Added a note about exclamation marks in paths.
+rem - Optimized scanning speed (replaced batch file counting with native directory checks).
+rem - Optimized deletion speed (removed redundant file verification).
+rem - Improved Unity project detection using Assets/ProjectSettings structure.
 
 rem Save the original encoding:
 for /f "tokens=2 delims=:." %%x in ('chcp') do set cp=%%x
@@ -38,6 +38,11 @@ rem Variables for finding Library folders:
 set "SceneFile=LastSceneManagerSetup.txt"
 set "BuildSettingsFile=EditorUserBuildSettings.asset"
 set "LibraryFolder=Library"
+
+rem Spinner for progress indication:
+set "spinChars=|/-\"
+set /a spinIdx=0
+for /f %%a in ('"prompt $H&for %%b in (1) do rem"') do set "BS=%%a"
 
 echo %GreenSeparator%
 echo.
@@ -74,34 +79,40 @@ set "lastFolder=###"
 set /a lastLength=0
 set /a currentTotalLength=0
 
-for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
+for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%" 2^>nul') do (
     set "currentFolder=%%~d"
+	set /a "spinIdx=(spinIdx+1) %% 4"
+	for %%i in (!spinIdx!) do set "spinChar=!spinChars:~%%i,1!"
+	<nul set /p "=!spinChar!!BS!"
 	call set "currentFolderSub=%%currentFolder:~0,!lastLength!%%
-	if "!currentFolderSub!" equ "!lastFolder!" (
-		rem currentFolder is in lastFolder, skip it
-	) else (
-        rem currentFolder is not in lastFolder, it will be verified
-		set "folderPath=%%~d"
-		set "s=#!folderPath!"
+	if "!currentFolderSub!" neq "!lastFolder!" (
+		rem Calculate path length:
+		set "s=#%%~d"
 		set "currentLength=0"
-		for %%N in (1024 512 256 128 64 32 16 8 4 2 1) do (
+		for %%N in (4096 2048 1024 512 256 128 64 32 16 8 4 2 1) do (
 			if "!s:~%%N,1!" neq "" (
 				set /a "currentLength+=%%N"
 				set "s=!s:~%%N!"
 			)
 		)
-		rem adding characters to take into account a space and quotes:
+		rem Adding characters to take into account a space and quotes:
 		set /a "currentLength+=3"
-		if exist "%%d\%SceneFile%" (
-			cd %%d
-			set /a fileCount=0
-			for /r %%f in (*) do set /a fileCount+=1
-			if !fileCount! geq 3 (
+		rem Verify Unity project structure (parent must contain Assets and ProjectSettings):
+		set "parentDir=%%~dpd"
+		set "parentDir=!parentDir:~0,-1!"
+		if exist "!parentDir!\Assets" if exist "!parentDir!\ProjectSettings" (
+			rem Fast content check: subdirectories or extra files beyond preserved ones?
+			set "hasContent=0"
+			for /f "delims=" %%x in ('dir /ad /b "%%~d" 2^>nul') do set "hasContent=1"
+			if !hasContent! equ 0 (
+				for /f "delims=" %%x in ('dir /a-d /b "%%~d" 2^>nul ^| findstr /v /i /c:"%SceneFile%" /c:"%BuildSettingsFile%"') do set "hasContent=1"
+			)
+			if !hasContent! equ 1 (
 				if !currentLength! gtr !maxPathLength! (
 					set "impossibleFolders=!impossibleFolders! "%%~d""
 					set /a impossibleCounter+=1
 				) else (
-					set /a currentTotalLength += currentLength
+					set /a currentTotalLength+=currentLength
 					if !currentTotalLength! gtr !maxTotalPathLength! (
 						echo %Red% There is at least one more folder, but the maximum total path length has been reached.
 						echo %Yellow% Please delete the identified folders, and rerun the script to delete the remaining ones. %Normal%
@@ -119,6 +130,7 @@ for /f "tokens=* delims=" %%d in ('dir /ad /b /s "%LibraryFolder%"') do (
 		)
 	)
 )
+<nul set /p "=!BS! "
 
 :QUESTION
 set "foldersToDelete=!folders!"
@@ -207,34 +219,33 @@ set /a total=counter
 set /a counter=0
 rem Clean the Library folders:
 for %%d in (%foldersToDelete%) do (
-	if exist "%%~d\%SceneFile%" (
-		cd "%%~d"
-		set /a fileCount=0
-		for /r %%f in (*) do if %%f neq "%%~d\%SceneFile%" set /a fileCount+=1
-		if !fileCount! geq 1 (
-			cd /d "%~dp0"
-			if exist "%%~d\%SceneFile%" (
-				rem Create a temp folder to backup the desired files:
-				mkdir "%%~d_T"
-				rem Move the file to the temp folder:
-				move "%%~d\%SceneFile%" "%%~d_T" >nul
-				rem Also check if BuildSettingsFile exists:
-				if exist "%%~d\%BuildSettingsFile%" (
-					rem Move the file to the temp folder:
-					move "%%~d\%BuildSettingsFile%" "%%~d_T" >nul
-				)
-			)
-			rd /s /q "%%~d"
-			rem The following condition moves the file or renames the temp folder
-			if exist "%%~d_T" (
-				if exist "%%~d" (
-					for %%f in ("%%~d_T\*.*") do move "%%f" "%%~d" >nul
-					rd /s /q "%%~d_T"
-				) else ( ren "%%~d_T" %LibraryFolder%)
-			)
-			set /a counter+=1
-			echo  !counter!/%total% %Yellow% %%~d%Normal% has been emptied
+	if exist "%%~d" (
+		set /a "spinIdx=(spinIdx+1) %% 4"
+		for %%i in (!spinIdx!) do set "spinChar=!spinChars:~%%i,1!"
+		<nul set /p "=!spinChar!!BS!"
+		rem Backup preserved files to a temporary folder:
+		if exist "%%~d_T" rd /s /q "%%~d_T"
+		mkdir "%%~d_T"
+		if exist "%%~d\%SceneFile%" move "%%~d\%SceneFile%" "%%~d_T" >nul
+		if exist "%%~d\%BuildSettingsFile%" move "%%~d\%BuildSettingsFile%" "%%~d_T" >nul
+		rem Delete subfolders individually to update spinner:
+		for /d %%k in ("%%~d\*") do (
+			set /a "spinIdx=(spinIdx+1) %% 4"
+			for %%i in (!spinIdx!) do set "spinChar=!spinChars:~%%i,1!"
+			<nul set /p "=!spinChar!!BS!"
+			rd /s /q "%%k"
 		)
+		rem Delete the Library folder root and remaining files:
+		rd /s /q "%%~d"
+		rem Restore preserved files (rename temp folder or move files back):
+		if exist "%%~d_T" (
+			if exist "%%~d" (
+				for %%f in ("%%~d_T\*.*") do move "%%f" "%%~d" >nul
+				rd /s /q "%%~d_T"
+			) else ( ren "%%~d_T" %LibraryFolder%)
+		)
+		set /a counter+=1
+		echo  !counter!/%total% %Yellow% %%~d%Normal% has been emptied
 	)
 )
 echo.
@@ -268,7 +279,7 @@ echo.
 echo  %Bold%WARNING ^^! %Normal%
 echo  The following folder path%plural% %verb% been detected but %verb2% exceeding %maxPathLength% characters, so %pronoun% cannot be deleted.
 echo  To resolve this issue, move or rename %pronoun2%. Then run the script again^^!
-for %%d in (%impossibleFolders%) do echo  • %Red%%%~d%Normal%
+for %%d in (%impossibleFolders%) do echo  ï¿½ %Red%%%~d%Normal%
 echo.
 echo %RedSeparator%
 
